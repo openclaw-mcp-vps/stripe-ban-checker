@@ -1,0 +1,44 @@
+[
+  {
+    "category": "Illegal Products and Services",
+    "severity": "critical",
+    "description": "Businesses facilitating illegal goods, controlled substances, or unlawful activity are prohibited.",
+    "keywords": ["illegal drugs", "counterfeit", "stolen goods", "fake documents", "money laundering", "unlicensed gambling"]
+  },
+  {
+    "category": "Adult Content and Exploitation",
+    "severity": "critical",
+    "description": "Pornographic content, escort services, and exploitative adult businesses carry severe restrictions.",
+    "keywords": ["porn", "escort", "adult cam", "sexual services", "explicit content"]
+  },
+  {
+    "category": "High-Risk Financial Activity",
+    "severity": "high",
+    "description": "Unlicensed lending, unregistered investments, and opaque money movement models are frequently rejected.",
+    "keywords": ["payday loan", "unlicensed lending", "high-yield investment", "offshore transfer", "anonymous wallet"]
+  },
+  {
+    "category": "Crypto-Adjacent Risk Patterns",
+    "severity": "high",
+    "description": "Certain crypto services may require enhanced approvals and can trigger account restrictions if unclear.",
+    "keywords": ["token launch", "crypto exchange", "custody", "staking returns", "mixing service", "nft marketplace"]
+  },
+  {
+    "category": "Marketplace and Aggregation Risk",
+    "severity": "medium",
+    "description": "Platforms processing funds for third parties need explicit marketplace compliance and underwriting.",
+    "keywords": ["multi-vendor", "third-party sellers", "platform payouts", "escrow", "gig marketplace"]
+  },
+  {
+    "category": "Restricted Regulated Goods",
+    "severity": "high",
+    "description": "Firearms, controlled healthcare products, nicotine, and certain supplements are tightly regulated.",
+    "keywords": ["firearms", "ammo", "vape", "nicotine", "telemedicine prescriptions", "weight-loss drugs"]
+  },
+  {
+    "category": "Misleading or Deceptive Practices",
+    "severity": "high",
+    "description": "Businesses with unclear billing, false claims, or hidden recurring charges face fast suspension risk.",
+    "keywords": ["guaranteed returns", "get rich quick", "hidden fees", "trial to paid without notice", "negative option billing"]
+  }
+]
