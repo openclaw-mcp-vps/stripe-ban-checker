@@ -1,62 +1,57 @@
-import type { Metadata } from "next";
-import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk"
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  variable: "--font-ibm-plex-mono",
-  weight: ["400", "500", "600"]
-});
-
-const siteUrl = "https://stripe-ban-checker.com";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://stripe-ban-checker.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Stripe Ban Checker | Check if your business model violates Stripe",
+  title: {
+    default: "Stripe Ban Checker | Check if your business model violates Stripe",
+    template: "%s | Stripe Ban Checker"
+  },
   description:
-    "Analyze your business model against Stripe's prohibited business list and terms before applying. Avoid surprise rejections and processor blacklisting.",
+    "Analyze your business model against Stripe's prohibited business list and terms. Identify compliance risks before you apply and avoid payment processor blacklisting.",
   keywords: [
     "Stripe compliance checker",
     "Stripe prohibited businesses",
-    "Stripe risk assessment",
-    "payment processor compliance",
-    "fintech founder tools"
+    "payment processor risk",
+    "fintech founder tools",
+    "high-risk SaaS payments"
   ],
   openGraph: {
     title: "Stripe Ban Checker",
     description:
-      "Find Stripe compliance risks before you apply. Get a detailed risk report and practical mitigation steps.",
+      "Check if your business model violates Stripe before you apply. Get a compliance score, risk areas, and fixes.",
     type: "website",
-    url: siteUrl,
+    url: "/",
     siteName: "Stripe Ban Checker"
   },
   twitter: {
     card: "summary_large_image",
     title: "Stripe Ban Checker",
     description:
-      "Avoid Stripe rejection. Analyze your business model for prohibited or high-risk patterns before you apply."
+      "Stripe bans entire business categories without clear documentation. Check your risk before onboarding."
   },
   robots: {
     index: true,
     follow: true
+  },
+  alternates: {
+    canonical: "/"
   }
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  themeColor: "#0d1117",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} antialiased`}>
-        {children}
-      </body>
+      <body className="min-h-screen bg-[#0d1117] text-slate-100 antialiased">{children}</body>
     </html>
   );
 }

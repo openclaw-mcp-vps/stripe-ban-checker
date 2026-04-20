@@ -11,22 +11,22 @@ NICHE: fintech-tools
 PRICE: $$12/mo
 
 ARCHITECTURE SPEC:
-A Next.js web app that analyzes user-submitted business descriptions against Stripe's prohibited business list and terms of service using AI. Features a simple form interface, real-time compliance checking, and detailed risk assessment reports with actionable recommendations.
+A Next.js web app that analyzes business descriptions against Stripe's prohibited business list and terms of service using AI. Users input their business model, get a compliance score with specific risk areas highlighted, and receive actionable recommendations.
 
 PLANNED FILES:
 - app/page.tsx
 - app/check/page.tsx
 - app/api/analyze/route.ts
 - app/api/webhooks/lemonsqueezy/route.ts
-- components/BusinessForm.tsx
+- components/BusinessAnalyzer.tsx
 - components/ComplianceReport.tsx
-- components/RiskMeter.tsx
+- components/PricingCard.tsx
 - lib/stripe-rules.ts
 - lib/ai-analyzer.ts
 - lib/lemonsqueezy.ts
-- data/prohibited-businesses.json
+- types/compliance.ts
 
-DEPENDENCIES: next, react, tailwindcss, openai, @lemonsqueezy/lemonsqueezy.js, zod, lucide-react, framer-motion
+DEPENDENCIES: next, react, typescript, tailwindcss, openai, @lemonsqueezy/lemonsqueezy.js, zod, lucide-react, framer-motion
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)
@@ -66,8 +66,3 @@ After creating all files:
 
 Do NOT use placeholder text. Write real, helpful content for the landing page
 and the tool itself. The tool should actually work and provide value.
-
-
-PREVIOUS ATTEMPT FAILED WITH:
-Codex timed out after 600s
-Please fix the above errors and regenerate.

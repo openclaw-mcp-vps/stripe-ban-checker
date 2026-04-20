@@ -1,117 +1,167 @@
-import prohibitedBusinesses from "@/data/prohibited-businesses.json";
+import type { RiskLevel, RuleMatch } from "@/types/compliance";
 
-export type RuleSeverity = "low" | "medium" | "high" | "critical";
-
-export type RuleMatch = {
+export interface StripeRule {
+  id: string;
+  title: string;
   category: string;
-  severity: RuleSeverity;
-  description: string;
-  matchedKeywords: string[];
-  confidence: number;
-};
-
-export type RuleScanResult = {
-  matches: RuleMatch[];
-  riskScore: number;
-  overallRisk: RuleSeverity;
-};
-
-type RuleEntry = {
-  category: string;
-  severity: RuleSeverity;
-  description: string;
+  severity: RiskLevel;
   keywords: string[];
-};
-
-const severityWeight: Record<RuleSeverity, number> = {
-  low: 10,
-  medium: 22,
-  high: 34,
-  critical: 48
-};
-
-const normalizedRules = prohibitedBusinesses as RuleEntry[];
-
-function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, " ").trim();
+  whyItMatters: string;
+  stripeReference: string;
 }
 
-function scoreToOverallRisk(score: number): RuleSeverity {
-  if (score >= 80) return "critical";
-  if (score >= 60) return "high";
-  if (score >= 30) return "medium";
-  return "low";
+export const STRIPE_RULES: StripeRule[] = [
+  {
+    id: "adult-content",
+    title: "Explicit Adult Content",
+    category: "Content",
+    severity: "critical",
+    keywords: ["porn", "adult cam", "escort", "onlyfans management", "explicit content", "nude"],
+    whyItMatters:
+      "Stripe generally prohibits explicit sexual content businesses and related services in standard onboarding.",
+    stripeReference: "Prohibited and restricted businesses: adult content and services"
+  },
+  {
+    id: "gambling",
+    title: "Unlicensed Gambling",
+    category: "Gaming",
+    severity: "critical",
+    keywords: ["sports betting", "casino", "lottery", "wager", "poker with cash", "bookmaker"],
+    whyItMatters:
+      "Betting and games of chance require licensing and jurisdiction-specific approvals that most startups lack.",
+    stripeReference: "Restricted business: gambling and games of chance"
+  },
+  {
+    id: "counterfeit-or-illegal",
+    title: "Counterfeit or Illegal Goods",
+    category: "Commerce",
+    severity: "critical",
+    keywords: ["counterfeit", "fake ids", "stolen accounts", "pirated software", "illegal drugs", "weapons"],
+    whyItMatters:
+      "Selling illegal goods or services is prohibited and results in immediate account closure.",
+    stripeReference: "Prohibited business: illegal products and services"
+  },
+  {
+    id: "high-risk-financial",
+    title: "High-Risk Financial Products",
+    category: "Financial",
+    severity: "high",
+    keywords: [
+      "binary options",
+      "forex signals",
+      "investment returns",
+      "securities crowdfunding",
+      "unlicensed lending",
+      "debt collection"
+    ],
+    whyItMatters:
+      "Financial services are highly regulated; missing licenses or disclosures can trigger rejection.",
+    stripeReference: "Restricted business: financial and investment services"
+  },
+  {
+    id: "crypto-exchange-custody",
+    title: "Crypto Exchange or Custody Exposure",
+    category: "Crypto",
+    severity: "high",
+    keywords: ["crypto exchange", "custodial wallet", "token launch", "on-ramp", "off-ramp", "stablecoin yield"],
+    whyItMatters:
+      "Crypto-adjacent services can be supported only in limited forms and regions with additional controls.",
+    stripeReference: "Crypto restrictions and regional policy requirements"
+  },
+  {
+    id: "marketplace-risk",
+    title: "Marketplace Facilitation Risk",
+    category: "Platform",
+    severity: "moderate",
+    keywords: ["marketplace", "gig platform", "multi-vendor", "payouts to sellers", "escrow", "merchant of record"],
+    whyItMatters:
+      "Marketplaces are allowed but need explicit funds flow design, KYC, and clear seller onboarding controls.",
+    stripeReference: "Stripe Connect compliance and platform requirements"
+  },
+  {
+    id: "health-claims",
+    title: "Medical or Supplement Claims",
+    category: "Healthcare",
+    severity: "high",
+    keywords: ["miracle cure", "medical diagnosis", "prescription", "supplement", "pharmaceutical", "telemedicine"],
+    whyItMatters:
+      "Regulated healthcare products need compliant claims language and often additional payment controls.",
+    stripeReference: "Restricted business: healthcare and regulated products"
+  },
+  {
+    id: "remote-tech-support",
+    title: "Remote Tech Support / Scam Signals",
+    category: "Services",
+    severity: "high",
+    keywords: ["remote pc fix", "virus cleanup service", "computer support hotline", "unlock account fee"],
+    whyItMatters:
+      "Remote support businesses have high fraud/chargeback risk and are commonly restricted.",
+    stripeReference: "Restricted business: deceptive or high-fraud services"
+  },
+  {
+    id: "ip-infringement",
+    title: "IP Infringement Exposure",
+    category: "Commerce",
+    severity: "high",
+    keywords: ["brand replicas", "movie streaming clone", "licensed logos", "resold software keys"],
+    whyItMatters:
+      "Intellectual property violations drive dispute rates and can trigger processor bans.",
+    stripeReference: "Prohibited business: intellectual property infringement"
+  }
+];
+
+function normalizeText(input: string): string {
+  return input.toLowerCase().replace(/[^a-z0-9\s-]/g, " ");
 }
 
-export function scanBusinessAgainstRules(input: {
-  businessName: string;
-  businessModel: string;
-  targetCustomers: string;
-  revenueFlow: string;
-}): RuleScanResult {
-  const corpus = normalizeText(
-    `${input.businessName} ${input.businessModel} ${input.targetCustomers} ${input.revenueFlow}`
-  );
+export function findStripeRuleMatches(description: string): RuleMatch[] {
+  const text = normalizeText(description);
 
-  const matches: RuleMatch[] = normalizedRules
-    .map((rule) => {
-      const matchedKeywords = rule.keywords.filter((keyword) =>
-        corpus.includes(keyword.toLowerCase())
-      );
+  return STRIPE_RULES.map((rule) => {
+    const matchedKeywords = rule.keywords.filter((keyword) => text.includes(keyword.toLowerCase()));
 
-      if (matchedKeywords.length === 0) {
-        return null;
-      }
+    if (matchedKeywords.length === 0) {
+      return null;
+    }
 
-      const confidence = Math.min(96, 45 + matchedKeywords.length * 12);
+    const keywordCoverage = matchedKeywords.length / rule.keywords.length;
+    const confidence = Math.min(0.95, 0.4 + keywordCoverage * 0.7);
 
-      return {
-        category: rule.category,
-        severity: rule.severity,
-        description: rule.description,
-        matchedKeywords,
-        confidence
-      } satisfies RuleMatch;
-    })
-    .filter((match): match is RuleMatch => Boolean(match));
+    return {
+      id: rule.id,
+      title: rule.title,
+      category: rule.category,
+      severity: rule.severity,
+      confidence,
+      matchedKeywords,
+      whyItMatters: rule.whyItMatters,
+      stripeReference: rule.stripeReference
+    } satisfies RuleMatch;
+  }).filter((match): match is RuleMatch => Boolean(match));
+}
 
-  const baseScore = matches.reduce(
-    (sum, item) => sum + severityWeight[item.severity] + item.matchedKeywords.length * 4,
-    0
-  );
-
-  const diversificationPenalty = matches.length > 1 ? Math.min(20, matches.length * 5) : 0;
-  const riskScore = Math.max(5, Math.min(100, baseScore + diversificationPenalty));
+export function detectRiskSignals(description: string) {
+  const text = normalizeText(description);
 
   return {
-    matches,
-    riskScore,
-    overallRisk: scoreToOverallRisk(riskScore)
+    mentionsAnonymousPayments: /anonymous|no[-\s]?kyc|private payment|burner/i.test(text),
+    mentionsRapidPayouts: /instant payout|same day payout|fast cashout/i.test(text),
+    mentionsChargebackProneLanguage: /guaranteed return|double your money|no refund/i.test(text),
+    mentionsRegulatedVertical: /casino|crypto|medical|lending|adult|supplement/i.test(text)
   };
 }
 
-export function generateBaselineRecommendations(scan: RuleScanResult): string[] {
-  const base: string[] = [
-    "Document your exact money flow, including who pays whom and when funds are settled.",
-    "Prepare a transparent Terms of Service and refund policy before onboarding users.",
-    "Avoid vague claims in marketing copy, especially financial return or guarantee language."
-  ];
-
-  const riskSpecific: Record<RuleSeverity, string[]> = {
-    low: ["Maintain a compliance changelog and re-check your model before shipping major features."],
-    medium: [
-      "Request Stripe pre-approval details in writing before launching paid plans.",
-      "Narrow your initial scope to low-risk segments and delay edge-case offerings."
-    ],
-    high: [
-      "Consult payments counsel to validate licensing and underwriting requirements.",
-      "Build processor redundancy now (secondary PSP + fallback invoicing flow)."
-    ],
-    critical: [
-      "Do not submit this model to Stripe in its current state; restructure the offering first.",
-      "Remove prohibited activity from product scope and separate risky lines into independent entities."
-    ]
-  };
-
-  return [...base, ...riskSpecific[scan.overallRisk]];
+export function severityWeight(level: RiskLevel): number {
+  switch (level) {
+    case "critical":
+      return 28;
+    case "high":
+      return 18;
+    case "moderate":
+      return 10;
+    case "low":
+      return 4;
+    default:
+      return 0;
+  }
 }

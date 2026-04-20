@@ -1,65 +1,82 @@
 import { NextResponse } from "next/server";
-import { upsertPurchase, verifyLemonSqueezySignature } from "@/lib/lemonsqueezy";
+import { z } from "zod";
+import {
+  persistWebhookEvent,
+  upsertPurchaseRecord,
+  verifyLemonWebhookSignature
+} from "@/lib/lemonsqueezy";
 
-function extractPurchase(data: unknown): { email: string; orderId: string; productId?: string } | null {
-  const payload = data as {
-    data?: {
-      id?: string;
-      attributes?: {
-        user_email?: string;
-        identifier?: string;
-        product_id?: number | string;
-      };
-    };
-    meta?: {
-      custom_data?: {
-        email?: string;
-      };
-    };
-  };
+export const runtime = "nodejs";
 
-  const attributes = payload?.data?.attributes;
-  const email = attributes?.user_email ?? payload?.meta?.custom_data?.email;
-  const orderId = attributes?.identifier ?? payload?.data?.id;
-  const productId = attributes?.product_id ? String(attributes.product_id) : undefined;
+const webhookSchema = z
+  .object({
+    meta: z
+      .object({
+        event_name: z.string(),
+        custom_data: z.record(z.any()).optional()
+      })
+      .passthrough(),
+    data: z
+      .object({
+        id: z.union([z.string(), z.number()]).optional(),
+        attributes: z.record(z.any()).optional()
+      })
+      .passthrough()
+  })
+  .passthrough();
 
-  if (!email || !orderId) {
-    return null;
-  }
-
-  return {
-    email,
-    orderId,
-    productId
-  };
+function parseStatus(eventName: string): "active" | "cancelled" | "refunded" {
+  if (eventName.includes("cancel") || eventName.includes("expired")) return "cancelled";
+  if (eventName.includes("refund")) return "refunded";
+  return "active";
 }
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const signature = request.headers.get("x-signature") ?? "";
+  const signature = request.headers.get("x-signature");
 
-  if (!verifyLemonSqueezySignature(rawBody, signature)) {
+  if (!verifyLemonWebhookSignature(rawBody, signature)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let payload: unknown;
-
   try {
     payload = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Malformed JSON" }, { status: 400 });
   }
 
-  const purchase = extractPurchase(payload);
-
-  if (!purchase) {
-    return NextResponse.json({ received: true, skipped: true });
+  const parsed = webhookSchema.safeParse(payload);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Unsupported webhook shape" }, { status: 400 });
   }
 
-  await upsertPurchase({
-    ...purchase,
-    createdAt: new Date().toISOString()
-  });
+  const eventName = parsed.data.meta.event_name;
+  await persistWebhookEvent(eventName, parsed.data);
+
+  const attributes = parsed.data.data.attributes ?? {};
+  const orderIdValue =
+    attributes.order_id ??
+    attributes.identifier ??
+    attributes.subscription_id ??
+    parsed.data.data.id ??
+    parsed.data.meta.custom_data?.order_id;
+
+  const orderId = orderIdValue ? String(orderIdValue) : "";
+  const email =
+    (typeof attributes.user_email === "string" && attributes.user_email) ||
+    (typeof attributes.email === "string" && attributes.email) ||
+    undefined;
+
+  if (orderId) {
+    await upsertPurchaseRecord({
+      orderId,
+      email,
+      eventName,
+      status: parseStatus(eventName),
+      createdAt: new Date().toISOString()
+    });
+  }
 
   return NextResponse.json({ received: true });
 }
