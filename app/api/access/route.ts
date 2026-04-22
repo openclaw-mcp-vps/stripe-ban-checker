@@ -1,39 +1,75 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hasPaidAccess } from "@/lib/lemonsqueezy";
 
-const AccessSchema = z.object({
-  email: z.string().email()
+import { ACCESS_COOKIE_NAME, createAccessToken, getAccessCookieOptions } from "@/lib/auth";
+import { hasActivePurchase } from "@/lib/lemonsqueezy";
+
+const emailSchema = z.object({
+  email: z.string().email(),
+  intent: z.string().optional()
 });
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { email } = AccessSchema.parse(body);
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
 
-    const access = await hasPaidAccess(email);
+export async function POST(request: NextRequest) {
+  const contentType = request.headers.get("content-type") ?? "";
 
-    if (!access) {
-      return NextResponse.json(
-        { error: "No completed purchase found for that email yet." },
-        { status: 403 }
-      );
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+
+    if (formData.get("intent") === "logout") {
+      const response = NextResponse.redirect(new URL("/", request.url));
+      response.cookies.set(ACCESS_COOKIE_NAME, "", {
+        ...getAccessCookieOptions(),
+        maxAge: 0
+      });
+      return response;
     }
 
-    const response = NextResponse.json({ ok: true });
-
-    response.cookies.set({
-      name: "sbc_access",
-      value: "granted",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 30,
-      path: "/"
+    const parsed = emailSchema.safeParse({
+      email: String(formData.get("email") ?? ""),
+      intent: String(formData.get("intent") ?? "")
     });
 
+    if (!parsed.success) {
+      return NextResponse.redirect(new URL("/check", request.url));
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+    const paid = await hasActivePurchase(email);
+
+    if (!paid) {
+      return NextResponse.redirect(new URL("/check", request.url));
+    }
+
+    const response = NextResponse.redirect(new URL("/check", request.url));
+    response.cookies.set(ACCESS_COOKIE_NAME, createAccessToken(email), getAccessCookieOptions());
     return response;
-  } catch {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
+
+  const body = await request.json().catch(() => ({}));
+  const parsed = emailSchema.safeParse(body);
+
+  if (!parsed.success || !parsed.data.email) {
+    return NextResponse.json({ error: "Provide a valid checkout email." }, { status: 400 });
+  }
+
+  const email = normalizeEmail(parsed.data.email);
+  const paid = await hasActivePurchase(email);
+
+  if (!paid) {
+    return NextResponse.json(
+      {
+        error:
+          "No completed payment was found for that email yet. Use the same checkout email and allow a moment for webhook sync."
+      },
+      { status: 403 }
+    );
+  }
+
+  const response = NextResponse.json({ ok: true });
+  response.cookies.set(ACCESS_COOKIE_NAME, createAccessToken(email), getAccessCookieOptions());
+  return response;
 }

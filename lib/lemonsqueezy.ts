@@ -1,170 +1,183 @@
-import * as LemonSqueezySDK from "@lemonsqueezy/lemonsqueezy.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 
-export interface PurchaseRecord {
-  orderId: string;
-  email?: string;
-  eventName: string;
-  status: "active" | "cancelled" | "refunded";
-  createdAt: string;
+export type PurchaseRecord = {
+  email: string;
+  source: "stripe" | "lemonsqueezy";
+  reference: string;
+  paidAt: string;
+  amount?: number;
+  currency?: string;
+};
+
+const DATA_DIRECTORY = path.join(process.cwd(), ".data");
+const PURCHASES_FILE = path.join(DATA_DIRECTORY, "purchases.json");
+
+async function ensureDataFile() {
+  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
+  try {
+    await fs.access(PURCHASES_FILE);
+  } catch {
+    await fs.writeFile(PURCHASES_FILE, JSON.stringify({ purchases: [] }, null, 2), "utf8");
+  }
 }
 
-interface PurchaseStore {
-  purchases: PurchaseRecord[];
-  webhookEvents: Array<{
-    eventName: string;
-    receivedAt: string;
-    payload: unknown;
-  }>;
+async function readPurchaseStore() {
+  await ensureDataFile();
+  const raw = await fs.readFile(PURCHASES_FILE, "utf8");
+  const parsed = JSON.parse(raw) as { purchases?: PurchaseRecord[] };
+  return parsed.purchases ?? [];
 }
 
-const STORE_FILE = path.join(process.cwd(), ".data", "purchases.json");
-const ACCESS_COOKIE_NAME = "sbc_access";
-const ACCESS_COOKIE_DAYS = 31;
-
-function getCookieSecret() {
-  return process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || "dev-cookie-secret-change-me";
+async function writePurchaseStore(purchases: PurchaseRecord[]) {
+  await ensureDataFile();
+  await fs.writeFile(PURCHASES_FILE, JSON.stringify({ purchases }, null, 2), "utf8");
 }
 
-function base64UrlEncode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64url");
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }
 
-function base64UrlDecode(value: string) {
-  return Buffer.from(value, "base64url").toString("utf8");
+export async function hasActivePurchase(email: string) {
+  const normalized = normalizeEmail(email);
+  const purchases = await readPurchaseStore();
+  return purchases.some((purchase) => normalizeEmail(purchase.email) === normalized);
 }
 
-function signPayload(payload: string) {
-  return createHmac("sha256", getCookieSecret()).update(payload).digest("hex");
-}
+export async function upsertPurchase(record: PurchaseRecord) {
+  const normalizedRecord: PurchaseRecord = {
+    ...record,
+    email: normalizeEmail(record.email)
+  };
 
-export function createAccessCookieValue() {
-  const payload = base64UrlEncode(
-    JSON.stringify({
-      status: "active",
-      exp: Date.now() + ACCESS_COOKIE_DAYS * 24 * 60 * 60 * 1000
-    })
+  const purchases = await readPurchaseStore();
+  const existingIndex = purchases.findIndex(
+    (purchase) =>
+      normalizeEmail(purchase.email) === normalizedRecord.email ||
+      (purchase.reference === normalizedRecord.reference && purchase.source === normalizedRecord.source)
   );
 
-  const signature = signPayload(payload);
-  return `${payload}.${signature}`;
+  if (existingIndex >= 0) {
+    purchases[existingIndex] = {
+      ...purchases[existingIndex],
+      ...normalizedRecord
+    };
+  } else {
+    purchases.push(normalizedRecord);
+  }
+
+  await writePurchaseStore(purchases);
 }
 
-export function isAccessCookieValid(cookieValue?: string | null) {
-  if (!cookieValue) return false;
+export function verifyStripeSignature(rawBody: string, signatureHeader: string | null, secret: string) {
+  if (!signatureHeader) {
+    return false;
+  }
 
-  const [payload, signature] = cookieValue.split(".");
-  if (!payload || !signature) return false;
+  const parts = signatureHeader.split(",").reduce<Record<string, string>>((accumulator, item) => {
+    const [key, value] = item.split("=");
+    if (key && value) {
+      accumulator[key.trim()] = value.trim();
+    }
+    return accumulator;
+  }, {});
 
-  const expectedSignature = signPayload(payload);
-  const sigBuffer = Buffer.from(signature, "hex");
+  const timestamp = parts.t;
+  const signature = parts.v1;
+
+  if (!timestamp || !signature) {
+    return false;
+  }
+
+  const signedPayload = `${timestamp}.${rawBody}`;
+  const expectedSignature = createHmac("sha256", secret).update(signedPayload).digest("hex");
+
+  const incomingBuffer = Buffer.from(signature, "hex");
   const expectedBuffer = Buffer.from(expectedSignature, "hex");
 
-  if (sigBuffer.length !== expectedBuffer.length) return false;
-  if (!timingSafeEqual(sigBuffer, expectedBuffer)) return false;
-
-  try {
-    const decoded = JSON.parse(base64UrlDecode(payload)) as { status?: string; exp?: number };
-    return decoded.status === "active" && typeof decoded.exp === "number" && Date.now() < decoded.exp;
-  } catch {
+  if (incomingBuffer.length !== expectedBuffer.length) {
     return false;
   }
+
+  return timingSafeEqual(incomingBuffer, expectedBuffer);
 }
 
-async function loadStore(): Promise<PurchaseStore> {
-  try {
-    const raw = await readFile(STORE_FILE, "utf8");
-    const parsed = JSON.parse(raw) as PurchaseStore;
+export function extractPurchaseFromWebhook(payload: unknown): PurchaseRecord | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const maybeStripeEvent = payload as {
+    type?: string;
+    data?: {
+      object?: {
+        id?: string;
+        amount_total?: number;
+        currency?: string;
+        created?: number;
+        customer_email?: string;
+        customer_details?: {
+          email?: string;
+        };
+      };
+    };
+  };
+
+  if (maybeStripeEvent.type === "checkout.session.completed") {
+    const session = maybeStripeEvent.data?.object;
+    const email = session?.customer_details?.email || session?.customer_email;
+
+    if (!email || !session?.id) {
+      return null;
+    }
 
     return {
-      purchases: parsed.purchases ?? [],
-      webhookEvents: parsed.webhookEvents ?? []
+      email,
+      source: "stripe",
+      reference: session.id,
+      paidAt: session.created ? new Date(session.created * 1000).toISOString() : new Date().toISOString(),
+      amount: session.amount_total,
+      currency: session.currency
     };
-  } catch {
-    return { purchases: [], webhookEvents: [] };
-  }
-}
-
-async function saveStore(store: PurchaseStore) {
-  await mkdir(path.dirname(STORE_FILE), { recursive: true });
-  await writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf8");
-}
-
-export async function persistWebhookEvent(eventName: string, payload: unknown) {
-  const store = await loadStore();
-  store.webhookEvents.push({
-    eventName,
-    payload,
-    receivedAt: new Date().toISOString()
-  });
-  store.webhookEvents = store.webhookEvents.slice(-1000);
-  await saveStore(store);
-}
-
-export async function upsertPurchaseRecord(record: PurchaseRecord) {
-  const store = await loadStore();
-  const index = store.purchases.findIndex((entry) => entry.orderId === record.orderId);
-
-  if (index >= 0) {
-    store.purchases[index] = record;
-  } else {
-    store.purchases.push(record);
   }
 
-  store.purchases = store.purchases.slice(-5000);
-  await saveStore(store);
-}
+  const maybeLemonEvent = payload as {
+    meta?: {
+      event_name?: string;
+      custom_data?: {
+        email?: string;
+      };
+    };
+    data?: {
+      id?: string;
+      attributes?: {
+        user_email?: string;
+        created_at?: string;
+        total?: number;
+        currency?: string;
+      };
+    };
+  };
 
-export async function hasRecordedPurchase(orderId: string) {
-  const store = await loadStore();
-  return store.purchases.some((entry) => entry.orderId === orderId && entry.status === "active");
-}
+  if (maybeLemonEvent.meta?.event_name === "order_created") {
+    const email =
+      maybeLemonEvent.meta.custom_data?.email ||
+      maybeLemonEvent.data?.attributes?.user_email;
 
-export function verifyLemonWebhookSignature(rawBody: string, signatureHeader: string | null) {
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-  if (!secret || !signatureHeader) return false;
+    if (!email || !maybeLemonEvent.data?.id) {
+      return null;
+    }
 
-  const digest = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const providedBuffer = Buffer.from(signatureHeader, "hex");
-  const expectedBuffer = Buffer.from(digest, "hex");
-
-  if (providedBuffer.length !== expectedBuffer.length) {
-    return false;
+    return {
+      email,
+      source: "lemonsqueezy",
+      reference: maybeLemonEvent.data.id,
+      paidAt: maybeLemonEvent.data.attributes?.created_at ?? new Date().toISOString(),
+      amount: maybeLemonEvent.data.attributes?.total,
+      currency: maybeLemonEvent.data.attributes?.currency
+    };
   }
 
-  return timingSafeEqual(providedBuffer, expectedBuffer);
-}
-
-export function getCheckoutUrl(returnTo?: string) {
-  const storeId = process.env.NEXT_PUBLIC_LEMON_SQUEEZY_STORE_ID;
-  const productId = process.env.NEXT_PUBLIC_LEMON_SQUEEZY_PRODUCT_ID;
-  if (!storeId || !productId) return null;
-
-  const base = `https://checkout.lemonsqueezy.com/buy/${encodeURIComponent(productId)}`;
-  const query = new URLSearchParams({
-    embed: "1",
-    media: "0",
-    logo: "0",
-    "checkout[custom][store_id]": storeId
-  });
-
-  if (returnTo) {
-    query.set("checkout[success_url]", returnTo);
-  }
-
-  return `${base}?${query.toString()}`;
-}
-
-export function getAccessCookieName() {
-  return ACCESS_COOKIE_NAME;
-}
-
-export function getAccessCookieMaxAge() {
-  return ACCESS_COOKIE_DAYS * 24 * 60 * 60;
-}
-
-export function getLemonSqueezySDKVersionHint() {
-  return Object.keys(LemonSqueezySDK).length > 0 ? "sdk-loaded" : "sdk-missing";
+  return null;
 }

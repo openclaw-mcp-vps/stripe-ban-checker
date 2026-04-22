@@ -1,167 +1,268 @@
-import type { RiskLevel, RuleMatch } from "@/types/compliance";
+export type RiskSeverity = "low" | "medium" | "high" | "critical";
 
-export interface StripeRule {
-  id: string;
-  title: string;
+export type FlaggedArea = {
   category: string;
-  severity: RiskLevel;
-  keywords: string[];
-  whyItMatters: string;
-  stripeReference: string;
-}
+  severity: RiskSeverity;
+  reason: string;
+  evidence: string;
+  policyReference: string;
+};
 
-export const STRIPE_RULES: StripeRule[] = [
+type RuleDefinition = {
+  id: string;
+  category: string;
+  severity: RiskSeverity;
+  keywords: string[];
+  reason: string;
+  policyReference: string;
+  recommendations: string[];
+  saferAlternatives: string[];
+};
+
+const PROHIBITED_RULES: RuleDefinition[] = [
   {
-    id: "adult-content",
-    title: "Explicit Adult Content",
-    category: "Content",
+    id: "unlicensed-money-transmission",
+    category: "Unlicensed money transmission",
     severity: "critical",
-    keywords: ["porn", "adult cam", "escort", "onlyfans management", "explicit content", "nude"],
-    whyItMatters:
-      "Stripe generally prohibits explicit sexual content businesses and related services in standard onboarding.",
-    stripeReference: "Prohibited and restricted businesses: adult content and services"
-  },
-  {
-    id: "gambling",
-    title: "Unlicensed Gambling",
-    category: "Gaming",
-    severity: "critical",
-    keywords: ["sports betting", "casino", "lottery", "wager", "poker with cash", "bookmaker"],
-    whyItMatters:
-      "Betting and games of chance require licensing and jurisdiction-specific approvals that most startups lack.",
-    stripeReference: "Restricted business: gambling and games of chance"
-  },
-  {
-    id: "counterfeit-or-illegal",
-    title: "Counterfeit or Illegal Goods",
-    category: "Commerce",
-    severity: "critical",
-    keywords: ["counterfeit", "fake ids", "stolen accounts", "pirated software", "illegal drugs", "weapons"],
-    whyItMatters:
-      "Selling illegal goods or services is prohibited and results in immediate account closure.",
-    stripeReference: "Prohibited business: illegal products and services"
-  },
-  {
-    id: "high-risk-financial",
-    title: "High-Risk Financial Products",
-    category: "Financial",
-    severity: "high",
-    keywords: [
-      "binary options",
-      "forex signals",
-      "investment returns",
-      "securities crowdfunding",
-      "unlicensed lending",
-      "debt collection"
+    keywords: ["money transmitter", "remittance", "send money", "money transfer", "custody", "hold customer funds"],
+    reason:
+      "Stripe typically requires regulated licensing for businesses that move, hold, or transmit customer funds on behalf of others.",
+    policyReference: "Stripe Prohibited and Restricted Businesses: Money transmission and unlicensed financial services",
+    recommendations: [
+      "Clarify that Stripe only processes your service fee, not customer principal funds.",
+      "Use a licensed banking-as-a-service provider for custodial or remittance flows.",
+      "Document your fund flow with a ledger and settlement timeline before applying."
     ],
-    whyItMatters:
-      "Financial services are highly regulated; missing licenses or disclosures can trigger rejection.",
-    stripeReference: "Restricted business: financial and investment services"
+    saferAlternatives: [
+      "SaaS billing model where users pay only platform subscription fees",
+      "Marketplace split-payments through licensed partners with documented KYC/AML controls"
+    ]
   },
   {
-    id: "crypto-exchange-custody",
-    title: "Crypto Exchange or Custody Exposure",
-    category: "Crypto",
+    id: "sanctioned-or-illicit-activity",
+    category: "Sanctions or illicit facilitation",
+    severity: "critical",
+    keywords: ["sanction", "darknet", "fraud toolkit", "carding", "anonymous shell company", "launder"],
+    reason:
+      "Stripe blocks businesses that facilitate illegal activity, sanctions evasion, or fraud-enabling services.",
+    policyReference: "Stripe Terms: Illegal products/services and sanctions compliance",
+    recommendations: [
+      "Remove any language implying anonymity for prohibited activity.",
+      "Add explicit sanctions screening and prohibited-use controls.",
+      "Publish acceptable use policy and enforce account monitoring."
+    ],
+    saferAlternatives: [
+      "Compliance-focused fraud prevention tools", "RegTech analytics for licensed institutions"
+    ]
+  },
+  {
+    id: "adult-services",
+    category: "Adult content or services",
     severity: "high",
-    keywords: ["crypto exchange", "custodial wallet", "token launch", "on-ramp", "off-ramp", "stablecoin yield"],
-    whyItMatters:
-      "Crypto-adjacent services can be supported only in limited forms and regions with additional controls.",
-    stripeReference: "Crypto restrictions and regional policy requirements"
+    keywords: ["adult content", "cam site", "escort", "porn", "explicit content", "onlyfans agency"],
+    reason:
+      "Adult content and related services are heavily restricted and commonly declined without a dedicated high-risk setup.",
+    policyReference: "Stripe Restricted Businesses: Adult content and services",
+    recommendations: [
+      "Avoid ambiguous language around explicit content monetization.",
+      "If applicable, separate compliant software tooling from adult media monetization.",
+      "Prepare moderation and age-verification evidence for underwriting review."
+    ],
+    saferAlternatives: ["Creator CRM software without content monetization", "General social media scheduling tools"]
   },
   {
-    id: "marketplace-risk",
-    title: "Marketplace Facilitation Risk",
-    category: "Platform",
-    severity: "moderate",
-    keywords: ["marketplace", "gig platform", "multi-vendor", "payouts to sellers", "escrow", "merchant of record"],
-    whyItMatters:
-      "Marketplaces are allowed but need explicit funds flow design, KYC, and clear seller onboarding controls.",
-    stripeReference: "Stripe Connect compliance and platform requirements"
-  },
-  {
-    id: "health-claims",
-    title: "Medical or Supplement Claims",
-    category: "Healthcare",
+    id: "gambling-or-lotteries",
+    category: "Gambling, betting, or sweepstakes",
     severity: "high",
-    keywords: ["miracle cure", "medical diagnosis", "prescription", "supplement", "pharmaceutical", "telemedicine"],
-    whyItMatters:
-      "Regulated healthcare products need compliant claims language and often additional payment controls.",
-    stripeReference: "Restricted business: healthcare and regulated products"
+    keywords: ["sportsbook", "casino", "betting", "wager", "lottery", "raffle", "prediction market"],
+    reason:
+      "Gambling and wagering flows are tightly regulated and usually restricted by payment processors.",
+    policyReference: "Stripe Restricted Businesses: Gambling, games of chance, and betting",
+    recommendations: [
+      "Avoid taking stake funds directly through Stripe.",
+      "Segment any game platform fees from wager handling.",
+      "Confirm jurisdictional licensing requirements before launch."
+    ],
+    saferAlternatives: ["Skill-based competition software with no cash wagers", "Fantasy analytics subscriptions"]
   },
   {
-    id: "remote-tech-support",
-    title: "Remote Tech Support / Scam Signals",
-    category: "Services",
+    id: "weapons-or-controlled-goods",
+    category: "Weapons or controlled goods",
     severity: "high",
-    keywords: ["remote pc fix", "virus cleanup service", "computer support hotline", "unlock account fee"],
-    whyItMatters:
-      "Remote support businesses have high fraud/chargeback risk and are commonly restricted.",
-    stripeReference: "Restricted business: deceptive or high-fraud services"
+    keywords: ["firearm", "ghost gun", "ammo", "weapon accessory", "silencer", "switchblade"],
+    reason: "Weapons, ammunition, and certain controlled goods often trigger immediate account rejection.",
+    policyReference: "Stripe Prohibited Businesses: Weapons and controlled goods",
+    recommendations: [
+      "Remove direct weapon sales from Stripe processing.",
+      "Use alternative acquirers specialized for regulated categories.",
+      "Keep Stripe limited to non-regulated software fees if possible."
+    ],
+    saferAlternatives: ["General e-commerce software subscriptions", "Compliance training for retailers"]
   },
   {
-    id: "ip-infringement",
-    title: "IP Infringement Exposure",
-    category: "Commerce",
+    id: "counterfeit-or-infringement",
+    category: "Counterfeit or IP infringement",
     severity: "high",
-    keywords: ["brand replicas", "movie streaming clone", "licensed logos", "resold software keys"],
-    whyItMatters:
-      "Intellectual property violations drive dispute rates and can trigger processor bans.",
-    stripeReference: "Prohibited business: intellectual property infringement"
+    keywords: ["replica", "counterfeit", "bootleg", "fake brand", "pirated", "unlicensed stream"],
+    reason: "Businesses enabling counterfeit goods or copyright infringement are typically prohibited.",
+    policyReference: "Stripe Terms: Infringing goods and intellectual property violations",
+    recommendations: [
+      "Require seller verification and IP complaint handling workflows.",
+      "Add takedown SLAs and automated listing checks.",
+      "Prohibit replica and unauthorized branded inventory in your terms."
+    ],
+    saferAlternatives: ["Verified seller marketplaces", "Digital storefront tools with strict content policies"]
   }
 ];
 
-function normalizeText(input: string): string {
-  return input.toLowerCase().replace(/[^a-z0-9\s-]/g, " ");
+const HIGH_RISK_RULES: RuleDefinition[] = [
+  {
+    id: "crypto-adjacent",
+    category: "Crypto-adjacent operations",
+    severity: "medium",
+    keywords: ["crypto", "defi", "on-ramp", "off-ramp", "wallet", "stablecoin", "token"],
+    reason:
+      "Crypto-adjacent businesses can be approved, but underwriting usually requires detailed controls and clear product scope.",
+    policyReference: "Stripe Restricted Businesses: Cryptocurrency and virtual assets",
+    recommendations: [
+      "Describe whether you custody assets, execute trades, or only provide analytics/software.",
+      "Document KYC, AML, and transaction monitoring controls.",
+      "Separate high-risk flows from recurring software billing."
+    ],
+    saferAlternatives: ["Non-custodial analytics SaaS", "Compliance reporting tools for licensed exchanges"]
+  },
+  {
+    id: "marketplace-funds-flow",
+    category: "Marketplace with third-party payouts",
+    severity: "medium",
+    keywords: ["marketplace", "escrow", "seller payout", "split payment", "take rate", "platform fee"],
+    reason:
+      "Marketplace models are supported, but unclear fund flows and payout responsibilities raise underwriting risk.",
+    policyReference: "Stripe Connect underwriting guidance",
+    recommendations: [
+      "State who is merchant of record and when funds settle.",
+      "Use Stripe Connect or licensed payout providers for third-party disbursement.",
+      "Publish chargeback, refund, and dispute liability ownership."
+    ],
+    saferAlternatives: ["Lead generation marketplaces with off-platform settlement", "SaaS listing platforms with no payment handling"]
+  },
+  {
+    id: "health-supplements-medical-claims",
+    category: "Supplements or medical claims",
+    severity: "medium",
+    keywords: ["supplement", "fat loss", "cure", "medical claim", "prescription", "pharma"],
+    reason:
+      "Health products with aggressive claims have elevated dispute and compliance risk.",
+    policyReference: "Stripe Restricted Businesses: Pharmaceuticals and certain health products",
+    recommendations: [
+      "Remove unsubstantiated efficacy claims.",
+      "Document refund and customer support policies clearly.",
+      "Keep compliance documentation for product claims and approvals."
+    ],
+    saferAlternatives: ["Wellness coaching subscriptions", "Educational content with no medical claims"]
+  },
+  {
+    id: "chargeback-prone-patterns",
+    category: "Chargeback-prone billing patterns",
+    severity: "low",
+    keywords: ["free trial then", "negative option", "no refunds", "instant payout", "high-ticket coaching"],
+    reason: "Opaque billing terms and aggressive offers increase chargeback rates, which can trigger reserves or account closure.",
+    policyReference: "Stripe Terms: Dispute and fraud thresholds",
+    recommendations: [
+      "Use explicit renewal disclosures and clear cancellation paths.",
+      "Offer transparent refunds and support response SLAs.",
+      "Send pre-renewal reminders for trial conversions."
+    ],
+    saferAlternatives: ["Transparent monthly subscriptions", "Usage-based billing with clear invoicing"]
+  }
+];
+
+function includesAnyKeyword(normalizedText: string, keywords: string[]) {
+  return keywords.filter((keyword) => normalizedText.includes(keyword));
 }
 
-export function findStripeRuleMatches(description: string): RuleMatch[] {
-  const text = normalizeText(description);
-
-  return STRIPE_RULES.map((rule) => {
-    const matchedKeywords = rule.keywords.filter((keyword) => text.includes(keyword.toLowerCase()));
-
-    if (matchedKeywords.length === 0) {
-      return null;
-    }
-
-    const keywordCoverage = matchedKeywords.length / rule.keywords.length;
-    const confidence = Math.min(0.95, 0.4 + keywordCoverage * 0.7);
-
-    return {
-      id: rule.id,
-      title: rule.title,
-      category: rule.category,
-      severity: rule.severity,
-      confidence,
-      matchedKeywords,
-      whyItMatters: rule.whyItMatters,
-      stripeReference: rule.stripeReference
-    } satisfies RuleMatch;
-  }).filter((match): match is RuleMatch => Boolean(match));
-}
-
-export function detectRiskSignals(description: string) {
-  const text = normalizeText(description);
-
-  return {
-    mentionsAnonymousPayments: /anonymous|no[-\s]?kyc|private payment|burner/i.test(text),
-    mentionsRapidPayouts: /instant payout|same day payout|fast cashout/i.test(text),
-    mentionsChargebackProneLanguage: /guaranteed return|double your money|no refund/i.test(text),
-    mentionsRegulatedVertical: /casino|crypto|medical|lending|adult|supplement/i.test(text)
-  };
-}
-
-export function severityWeight(level: RiskLevel): number {
-  switch (level) {
+function severityPenalty(severity: RiskSeverity) {
+  switch (severity) {
     case "critical":
-      return 28;
+      return 38;
     case "high":
-      return 18;
-    case "moderate":
-      return 10;
+      return 24;
+    case "medium":
+      return 14;
     case "low":
-      return 4;
+      return 7;
     default:
       return 0;
   }
+}
+
+export type RuleScanResult = {
+  complianceScore: number;
+  verdict: "low-risk" | "review-needed" | "high-risk" | "prohibited";
+  summary: string;
+  flaggedAreas: FlaggedArea[];
+  recommendations: string[];
+  saferAlternatives: string[];
+};
+
+export function analyzeAgainstStripeRules(input: string): RuleScanResult {
+  const normalized = input.toLowerCase();
+  const matches: Array<RuleDefinition & { matchedKeywords: string[] }> = [];
+
+  for (const rule of [...PROHIBITED_RULES, ...HIGH_RISK_RULES]) {
+    const matchedKeywords = includesAnyKeyword(normalized, rule.keywords.map((keyword) => keyword.toLowerCase()));
+    if (matchedKeywords.length > 0) {
+      matches.push({ ...rule, matchedKeywords });
+    }
+  }
+
+  let score = 100;
+  for (const match of matches) {
+    score -= severityPenalty(match.severity);
+  }
+  score = Math.max(0, Math.min(100, score));
+
+  const hasCritical = matches.some((match) => match.severity === "critical");
+  const hasHigh = matches.some((match) => match.severity === "high");
+  const hasMedium = matches.some((match) => match.severity === "medium");
+
+  const verdict = hasCritical
+    ? "prohibited"
+    : hasHigh
+      ? "high-risk"
+      : hasMedium || score < 80
+        ? "review-needed"
+        : "low-risk";
+
+  const flaggedAreas: FlaggedArea[] = matches.map((match) => ({
+    category: match.category,
+    severity: match.severity,
+    reason: match.reason,
+    evidence: `Detected keywords: ${match.matchedKeywords.join(", ")}`,
+    policyReference: match.policyReference
+  }));
+
+  const recommendations = Array.from(new Set(matches.flatMap((match) => match.recommendations))).slice(0, 8);
+  const saferAlternatives = Array.from(new Set(matches.flatMap((match) => match.saferAlternatives))).slice(0, 6);
+
+  const summary =
+    matches.length === 0
+      ? "No obvious Stripe policy conflicts were found in your description. You still need clear billing, dispute handling, and compliance docs during underwriting."
+      : `Found ${matches.length} policy-sensitive areas. Focus on fund flow clarity, regulatory controls, and transparent billing before applying.`;
+
+  return {
+    complianceScore: score,
+    verdict,
+    summary,
+    flaggedAreas,
+    recommendations:
+      recommendations.length > 0
+        ? recommendations
+        : [
+            "Document your merchant-of-record setup and exact customer payment flow.",
+            "Publish clear refund, cancellation, and dispute policies.",
+            "Prepare KYC/AML and sanctions controls if your product touches financial movement."
+          ],
+    saferAlternatives
+  };
 }

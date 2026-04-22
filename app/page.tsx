@@ -1,172 +1,149 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertOctagon, BadgeCheck, CreditCard, Radar, ShieldAlert } from "lucide-react";
-import { PricingCard } from "@/components/PricingCard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle, CheckCircle2, ShieldAlert, Target, Zap } from "lucide-react";
 
-const painPoints = [
-  {
-    title: "Category bans are broad",
-    description:
-      "Stripe can reject entire verticals based on risk posture, even when your use case is legitimate and not obviously prohibited.",
-    icon: AlertOctagon
-  },
-  {
-    title: "One bad application hurts future options",
-    description:
-      "A rejected underwriting profile can reduce your odds with other processors and put your fundraising timeline at risk.",
-    icon: ShieldAlert
-  },
-  {
-    title: "Founders guess instead of preparing",
-    description:
-      "Most teams apply with vague descriptions, missing policies, and no risk controls, which increases rejection probability.",
-    icon: Radar
-  }
+import { PricingCard } from "@/components/PricingCard";
+
+export const metadata: Metadata = {
+  title: "Check if your business model violates Stripe",
+  description:
+    "Stripe Ban Checker flags prohibited and high-risk business patterns before your payment stack gets rejected."
+};
+
+const PROBLEM_POINTS = [
+  "Stripe can reject entire verticals after you already built onboarding and billing.",
+  "One rejection can cascade to higher reserves or denials from other processors.",
+  "Founders in fintech and marketplace models often misdescribe fund flow and trigger bans."
 ];
 
-const faq = [
+const SOLUTION_POINTS = [
+  "Score your model against prohibited and restricted categories.",
+  "See exactly which policy areas trigger risk and why.",
+  "Get concrete mitigation language before submitting your Stripe application."
+];
+
+const FAQS = [
   {
     question: "Does this guarantee Stripe approval?",
     answer:
-      "No tool can guarantee approval. This product gives a conservative pre-screen, highlights likely red flags, and helps you present a cleaner underwriting package."
+      "No tool can guarantee approval because Stripe underwriters evaluate full business context, risk history, and jurisdiction. This product gives you a materially better first-pass submission by removing obvious policy red flags."
   },
   {
-    question: "Who is this built for?",
+    question: "Who should use Stripe Ban Checker?",
     answer:
-      "Early-stage SaaS and fintech founders in edge categories such as marketplaces, crypto-adjacent products, lending workflows, or regulated service layers."
+      "Early-stage SaaS and fintech founders, especially marketplace, crypto-adjacent, and high-risk vertical operators who need to validate payment compliance before launch."
   },
   {
-    question: "What do I need to provide?",
+    question: "What happens after I pay?",
     answer:
-      "A plain-language description of your product, user types, transaction flow, what you charge for, and how money moves between parties."
+      "Use the same email at checkout and unlock the analyzer from the /check page. Access is stored in a secure httpOnly cookie after verification."
   },
   {
-    question: "How quickly can I run checks?",
+    question: "How accurate is the analysis?",
     answer:
-      "Each report is generated in seconds. Most founders run multiple versions while refining their website copy and underwriting responses."
+      "The engine combines deterministic Stripe-policy keyword detection with optional OpenAI reasoning for context. It is built to catch practical underwriting risk, not replace legal counsel."
   }
 ];
 
 export default function HomePage() {
   return (
-    <main className="relative overflow-x-hidden">
-      <div className="mx-auto max-w-6xl px-4 pb-24 pt-10 sm:px-6 lg:px-8">
-        <header className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6 shadow-[0_25px_60px_rgba(2,6,23,0.45)] backdrop-blur sm:p-10">
+    <main>
+      <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-6 lg:pt-20">
+        <div className="rounded-2xl border border-[#30363d] bg-[#111827]/70 p-8 shadow-2xl sm:p-12">
           <div className="max-w-3xl space-y-6">
-            <p className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
-              Fintech Compliance Intelligence
+            <p className="inline-flex rounded-full border border-[#1f6feb]/50 bg-[#1f6feb]/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#58a6ff]">
+              fintech-tools
             </p>
-            <h1 className="text-4xl font-semibold leading-tight text-slate-100 sm:text-5xl">
-              Check if your business model violates Stripe before you apply.
+            <h1 className="text-balance text-4xl font-semibold leading-tight text-[#f0f6fc] sm:text-5xl">
+              Check if your business model violates Stripe before you get rejected.
             </h1>
-            <p className="text-lg leading-relaxed text-slate-300">
-              Stripe bans entire business categories with limited upfront clarity. Stripe Ban Checker scores your model,
-              flags risky terms from your positioning, and gives concrete fixes so you can apply with confidence.
+            <p className="text-lg text-[#8b949e]">
+              Stripe bans entire categories without clear upfront documentation. Stripe Ban Checker analyzes your offer,
+              fund flow, and billing model so you can fix compliance issues before underwriting blocks your growth.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/check">
-                <Button size="lg">Run Your First Check</Button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/check"
+                className="inline-flex h-11 items-center justify-center rounded-md bg-[#238636] px-6 text-sm font-semibold text-white transition hover:bg-[#2ea043]"
+              >
+                Start Compliance Check
               </Link>
-              <a href="#pricing">
-                <Button variant="outline" size="lg">
-                  View Pricing
-                </Button>
+              <a
+                href="#pricing"
+                className="inline-flex h-11 items-center justify-center rounded-md border border-[#30363d] px-6 text-sm font-semibold text-[#c9d1d9] transition hover:bg-[#161b22]"
+              >
+                See Pricing
               </a>
             </div>
           </div>
-        </header>
+        </div>
+      </section>
 
-        <section className="mt-16">
-          <h2 className="text-2xl font-semibold text-slate-100 sm:text-3xl">Why founders get blocked</h2>
-          <p className="mt-3 max-w-3xl text-slate-400">
-            Payments risk teams care about exposure, not just intent. If your model sounds adjacent to prohibited or
-            heavily restricted activity, you need stronger framing and controls.
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 pb-14 sm:grid-cols-3 sm:px-6">
+        <div className="rounded-xl border border-[#30363d] bg-[#0f1620] p-5">
+          <ShieldAlert className="h-6 w-6 text-[#ff7b72]" />
+          <p className="mt-3 text-sm text-[#c9d1d9]">
+            Prevent sudden payment shutdown by detecting prohibited business signals early.
           </p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {painPoints.map((item) => (
-              <Card key={item.title}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg text-slate-100">
-                    <item.icon className="h-5 w-5 text-cyan-300" />
-                    {item.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm leading-relaxed text-slate-300">{item.description}</CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
+        </div>
+        <div className="rounded-xl border border-[#30363d] bg-[#0f1620] p-5">
+          <Target className="h-6 w-6 text-[#58a6ff]" />
+          <p className="mt-3 text-sm text-[#c9d1d9]">
+            Align your positioning with what Stripe underwriters actually look for.
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#30363d] bg-[#0f1620] p-5">
+          <Zap className="h-6 w-6 text-[#f2cc60]" />
+          <p className="mt-3 text-sm text-[#c9d1d9]">
+            Get actionable fixes in minutes instead of learning from a rejected application.
+          </p>
+        </div>
+      </section>
 
-        <section className="mt-16 grid gap-4 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-100">
-                <CreditCard className="h-5 w-5 text-cyan-300" />
-                1. Describe Your Flow
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-300">
-              Enter how users pay, who receives funds, and where risk lives. The analyzer works best with operational
-              details, not marketing slogans.
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-100">
-                <ShieldAlert className="h-5 w-5 text-cyan-300" />
-                2. See Risk Categories
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-300">
-              Get a compatibility score, issue severity, and category-level concerns tied to Stripe policy patterns.
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-100">
-                <BadgeCheck className="h-5 w-5 text-cyan-300" />
-                3. Fix Before Applying
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-300">
-              Follow practical recommendations to reduce underwriting friction and present your business in a compliant,
-              reviewable way.
-            </CardContent>
-          </Card>
-        </section>
-
-        <section id="pricing" className="mt-16 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-            <h2 className="text-3xl font-semibold text-slate-100">Simple pricing for high-stakes decisions</h2>
-            <p className="mt-3 text-slate-300">
-              The wrong processor application can delay revenue for months. For $12/month, you can screen every pivot,
-              onboarding flow, and copy update before it reaches Stripe risk review.
-            </p>
-            <ul className="mt-6 space-y-2 text-sm text-slate-300">
-              <li>Unlimited business model checks</li>
-              <li>Rule-based and AI-assisted risk explanation</li>
-              <li>Actionable rewrite guidance for underwriting</li>
-              <li>Built for founders in gray-area fintech verticals</li>
+      <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div className="rounded-xl border border-[#30363d] bg-[#111827]/50 p-6">
+            <h2 className="text-2xl font-semibold text-[#f0f6fc]">The Problem</h2>
+            <ul className="mt-4 space-y-3 text-sm text-[#c9d1d9]">
+              {PROBLEM_POINTS.map((point) => (
+                <li key={point} className="flex gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 text-[#ff7b72]" />
+                  <span>{point}</span>
+                </li>
+              ))}
             </ul>
           </div>
-          <PricingCard />
-        </section>
 
-        <section className="mt-16" id="faq">
-          <h2 className="text-3xl font-semibold text-slate-100">FAQ</h2>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {faq.map((entry) => (
-              <Card key={entry.question}>
-                <CardHeader>
-                  <CardTitle className="text-base text-slate-100">{entry.question}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm leading-relaxed text-slate-300">{entry.answer}</CardContent>
-              </Card>
-            ))}
+          <div className="rounded-xl border border-[#30363d] bg-[#111827]/50 p-6">
+            <h2 className="text-2xl font-semibold text-[#f0f6fc]">The Solution</h2>
+            <ul className="mt-4 space-y-3 text-sm text-[#c9d1d9]">
+              {SOLUTION_POINTS.map((point) => (
+                <li key={point} className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 text-[#3fb950]" />
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
+        <h2 className="mb-6 text-center text-3xl font-semibold text-[#f0f6fc]">Simple Pricing</h2>
+        <PricingCard />
+      </section>
+
+      <section className="mx-auto max-w-4xl px-4 pb-20 sm:px-6">
+        <h2 className="mb-6 text-center text-3xl font-semibold text-[#f0f6fc]">FAQ</h2>
+        <div className="space-y-4">
+          {FAQS.map((faq) => (
+            <article key={faq.question} className="rounded-xl border border-[#30363d] bg-[#111827]/60 p-5">
+              <h3 className="text-lg font-semibold text-[#f0f6fc]">{faq.question}</h3>
+              <p className="mt-2 text-sm text-[#c9d1d9]">{faq.answer}</p>
+            </article>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

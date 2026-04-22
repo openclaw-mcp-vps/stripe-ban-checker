@@ -1,15 +1,8 @@
 @import "tailwindcss";
-
-:root {
-  --background: #0d1117;
-  --background-soft: #111827;
-  --foreground: #e6edf3;
-  --muted: #8b949e;
-  --border: #30363d;
-}
+@import "tw-animate-css";
 
 * {
-  border-color: var(--border);
+  border-color: #30363d;
 }
 
 html,
@@ -18,21 +11,13 @@ body {
 }
 
 body {
-  margin: 0;
-  color: var(--foreground);
-  background:
-    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.16), transparent 35%),
-    radial-gradient(circle at 90% 20%, rgba(59, 130, 246, 0.1), transparent 40%),
-    linear-gradient(160deg, #0d1117, #0a0f16 65%, #0d1117);
-  font-family: "Space Grotesk", "Satoshi", "Avenir Next", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 15% 15%, rgba(31, 111, 235, 0.15), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(35, 134, 54, 0.12), transparent 35%),
+    #0d1117;
+  color: #c9d1d9;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
 }
 
 a {
   color: inherit;
-  text-decoration: none;
-}
-
-::selection {
-  background: rgba(56, 189, 248, 0.28);
-  color: #f0f9ff;
 }

@@ -1,67 +1,52 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, Loader2, WandSparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { LoaderCircle, Sparkles } from "lucide-react";
+
+import type { AnalysisResult } from "@/lib/ai-analyzer";
 import { ComplianceReport } from "@/components/ComplianceReport";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import type { ComplianceReportData } from "@/types/compliance";
 
-type BusinessAnalyzerProps = {
-  hasAccess: boolean;
-};
+const MIN_DESCRIPTION_LENGTH = 120;
 
-const EXAMPLE_PROMPTS = [
-  "We are building a B2B SaaS platform for subscription analytics and revenue forecasting for software companies.",
-  "We run a marketplace where users buy and sell digital assets and we handle payouts to independent creators.",
-  "We provide crypto tax automation for exchanges and wallets, without holding customer funds."
-];
-
-export function BusinessAnalyzer({ hasAccess }: BusinessAnalyzerProps) {
-  const [businessDescription, setBusinessDescription] = useState("");
+export function BusinessAnalyzer() {
+  const [description, setDescription] = useState("");
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<ComplianceReportData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const canSubmit = hasAccess && businessDescription.trim().length >= 40 && !isLoading;
+  const remainingCharacters = useMemo(
+    () => Math.max(0, MIN_DESCRIPTION_LENGTH - description.trim().length),
+    [description]
+  );
 
-  async function handleAnalyze(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setReport(null);
-
-    if (!hasAccess) {
-      setError("Unlock the analyzer first to run compliance checks.");
-      return;
-    }
-
+  async function runAnalysis() {
     setIsLoading(true);
+    setErrorMessage(null);
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessDescription })
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ businessDescription: description })
       });
 
-      if (response.status === 402) {
-        setError("Active subscription required. Complete checkout to unlock analysis.");
-        return;
-      }
+      const payload = (await response.json()) as AnalysisResult | { error?: string };
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        setError(data.error || "Could not analyze your business model.");
+        setResult(null);
+        setErrorMessage((payload as { error?: string }).error ?? "Analysis failed. Please try again.");
         return;
       }
 
-      const payload = (await response.json()) as { report: ComplianceReportData };
-      setReport(payload.report);
+      setResult(payload as AnalysisResult);
     } catch {
-      setError("Network error. Please try again in a moment.");
+      setResult(null);
+      setErrorMessage("Network error while running analysis. Please retry.");
     } finally {
       setIsLoading(false);
     }
@@ -69,87 +54,55 @@ export function BusinessAnalyzer({ hasAccess }: BusinessAnalyzerProps) {
 
   return (
     <div className="space-y-6">
-      <Card className={!hasAccess ? "border-amber-400/30" : "border-cyan-400/20"}>
+      <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-2xl text-slate-100">Business Model Analyzer</CardTitle>
-            <Badge variant={hasAccess ? "default" : "warn"}>{hasAccess ? "Unlocked" : "Locked"}</Badge>
-          </div>
-          <p className="text-sm text-slate-400">
-            Describe your product, customers, transaction flow, and what you actually charge for. More detail produces a
-            more accurate risk readout.
-          </p>
+          <CardTitle className="text-2xl">Describe Your Business Model</CardTitle>
+          <CardDescription>
+            Include what you sell, who pays, how money moves, and any crypto, marketplace, or regulated components.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleAnalyze} className="space-y-4">
-            <Textarea
-              value={businessDescription}
-              onChange={(event) => setBusinessDescription(event.target.value)}
-              rows={8}
-              placeholder="Example: We operate a marketplace for freelance security researchers. Companies post bounties, researchers submit vulnerability reports, and we hold funds then release payouts after validation."
-              disabled={!hasAccess || isLoading}
-            />
+        <CardContent className="space-y-4">
+          <Textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Example: We run a B2B marketplace for digital lending leads. Borrowers pay nothing, lenders pay us per qualified lead, and we do not hold customer funds."
+          />
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-slate-500">{businessDescription.length} characters</p>
-              <Button type="submit" disabled={!canSubmit}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Running Analysis...
-                  </>
-                ) : (
-                  <>
-                    <WandSparkles className="mr-2 h-4 w-4" />
-                    Analyze for Stripe Risk
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <p className="text-xs text-[#8b949e]">
+              {remainingCharacters > 0
+                ? `Add ${remainingCharacters} more characters for a high-confidence analysis.`
+                : "Description length is strong enough for detailed risk detection."}
+            </p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {EXAMPLE_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => setBusinessDescription(prompt)}
-                className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
-              >
-                Use example
-              </button>
-            ))}
+            <Button
+              onClick={runAnalysis}
+              disabled={isLoading || description.trim().length < MIN_DESCRIPTION_LENGTH}
+              className="sm:min-w-44"
+            >
+              {isLoading ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Analyzing
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Run Compliance Check
+                </>
+              )}
+            </Button>
           </div>
 
-          {!hasAccess && (
-            <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-              The analyzer is behind a paid plan. Complete checkout to unlock full compliance reports.
+          {errorMessage ? (
+            <div className="rounded-md border border-[#f85149]/50 bg-[#f85149]/10 px-3 py-2 text-sm text-[#ff7b72]">
+              {errorMessage}
             </div>
-          )}
-
-          {error && (
-            <div className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-200">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4" />
-                <p>{error}</p>
-              </div>
-            </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
-      <AnimatePresence>
-        {report && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.25 }}
-          >
-            <ComplianceReport report={report} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {result ? <ComplianceReport result={result} /> : null}
     </div>
   );
 }
